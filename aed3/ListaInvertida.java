@@ -125,7 +125,7 @@ public class ListaInvertida {
       int i = 0;
       while (i < quantidade && e.getId() > elementos[i].getId())
         i++;
-      if (e.getId() == elementos[i].getId()) {
+      if (i < quantidade && e.getId() == elementos[i].getId()) {
         elementos[i] = e.clone();
         return true;
       } else
@@ -139,7 +139,7 @@ public class ListaInvertida {
       int i = 0;
       while (i < quantidade && id > elementos[i].getId())
         i++;
-      if (id == elementos[i].getId()) {
+      if (i < quantidade && id == elementos[i].getId()) {
         while (i < quantidade - 1) {
           elementos[i] = elementos[i + 1];
           i++;

@@ -11,13 +11,13 @@ import aed3.InterfaceEntidade;
 
 public class Curso implements InterfaceEntidade {
 
-    // Estados do curso
     public static final short ATIVO_INSCRICOES = 0;
     public static final short ATIVO_SEM_INSCRICOES = 1;
     public static final short CONCLUIDO = 2;
     public static final short CANCELADO = 3;
 
     private int id;
+    private int idUsuario;
     private String nome;
     private LocalDate dataInicio;
     private String descricao;
@@ -25,15 +25,16 @@ public class Curso implements InterfaceEntidade {
     private short estado;
 
     public Curso() {
-        this(-1, "", LocalDate.now(), "", "", ATIVO_INSCRICOES);
+        this(-1, -1, "", LocalDate.now(), "", "", ATIVO_INSCRICOES);
     }
 
-    public Curso(String nome, LocalDate dataInicio, String descricao, String codigo, short estado) {
-        this(-1, nome, dataInicio, descricao, codigo, estado);
+    public Curso(int idUsuario, String nome, LocalDate dataInicio, String descricao, String codigo, short estado) {
+        this(-1, idUsuario, nome, dataInicio, descricao, codigo, estado);
     }
 
-    public Curso(int id, String nome, LocalDate dataInicio, String descricao, String codigo, short estado) {
+    public Curso(int id, int idUsuario, String nome, LocalDate dataInicio, String descricao, String codigo, short estado) {
         this.id = id;
+        this.idUsuario = idUsuario;
         this.nome = nome;
         this.dataInicio = dataInicio;
         this.descricao = descricao;
@@ -47,6 +48,14 @@ public class Curso implements InterfaceEntidade {
 
     public void setID(int id) {
         this.id = id;
+    }
+
+    public int getIdUsuario() {
+        return idUsuario;
+    }
+
+    public void setIdUsuario(int idUsuario) {
+        this.idUsuario = idUsuario;
     }
 
     public String getNome() {
@@ -91,8 +100,8 @@ public class Curso implements InterfaceEntidade {
 
     public String getEstadoDescricao() {
         switch (estado) {
-            case 0: return "Ativo e recebendo inscrições";
-            case 1: return "Ativo, mas sem novas inscrições";
+            case 0: return "Curso ativo e recebendo inscrições";
+            case 1: return "Curso ativo, mas sem novas inscrições";
             case 2: return "Curso realizado e concluído";
             case 3: return "Curso cancelado";
             default: return "Estado desconhecido";
@@ -113,6 +122,7 @@ public class Curso implements InterfaceEntidade {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
         dos.writeInt(id);
+        dos.writeInt(idUsuario);
         dos.writeUTF(nome);
         dos.writeInt((int) dataInicio.toEpochDay());
         dos.writeUTF(descricao);
@@ -125,6 +135,7 @@ public class Curso implements InterfaceEntidade {
         ByteArrayInputStream bais = new ByteArrayInputStream(vb);
         DataInputStream dis = new DataInputStream(bais);
         id = dis.readInt();
+        idUsuario = dis.readInt();
         nome = dis.readUTF();
         dataInicio = LocalDate.ofEpochDay(dis.readInt());
         descricao = dis.readUTF();

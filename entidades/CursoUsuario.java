@@ -1,41 +1,33 @@
 package entidades;
 
 import aed3.InterfaceEntidade;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
-/**
- * Entidade de associação para representar o relacionamento N:N entre Cursos e Usuários
- */
 public class CursoUsuario implements InterfaceEntidade {
 
-    // Papéis possíveis na associação
-    public static final String INSTRUTOR = "INSTRUTOR";
-    public static final String PARTICIPANTE = "PARTICIPANTE";
-
     private int id;
-    private int idUsuario;
     private int idCurso;
-    private String papel;
-    private LocalDateTime dataInsccricao;
+    private int idUsuario;
+    private LocalDate dataInscricao;
 
     public CursoUsuario() {
-        this(-1, -1, -1, PARTICIPANTE, LocalDateTime.now());
+        this(-1, -1, -1, LocalDate.now());
     }
 
-    public CursoUsuario(int idUsuario, int idCurso, String papel) {
-        this(-1, idUsuario, idCurso, papel, LocalDateTime.now());
+    public CursoUsuario(int idCurso, int idUsuario, LocalDate dataInscricao) {
+        this(-1, idCurso, idUsuario, dataInscricao);
     }
 
-    public CursoUsuario(int id, int idUsuario, int idCurso, String papel, LocalDateTime dataInsccricao) {
+    public CursoUsuario(int id, int idCurso, int idUsuario, LocalDate dataInscricao) {
         this.id = id;
-        this.idUsuario = idUsuario;
         this.idCurso = idCurso;
-        this.papel = papel;
-        this.dataInsccricao = dataInsccricao;
+        this.idUsuario = idUsuario;
+        this.dataInscricao = dataInscricao;
     }
 
     public int getID() {
@@ -46,14 +38,6 @@ public class CursoUsuario implements InterfaceEntidade {
         this.id = id;
     }
 
-    public int getIdUsuario() {
-        return idUsuario;
-    }
-
-    public void setIdUsuario(int idUsuario) {
-        this.idUsuario = idUsuario;
-    }
-
     public int getIdCurso() {
         return idCurso;
     }
@@ -62,41 +46,29 @@ public class CursoUsuario implements InterfaceEntidade {
         this.idCurso = idCurso;
     }
 
-    public String getPapel() {
-        return papel;
+    public int getIdUsuario() {
+        return idUsuario;
     }
 
-    public void setPapel(String papel) {
-        this.papel = papel;
+    public void setIdUsuario(int idUsuario) {
+        this.idUsuario = idUsuario;
     }
 
-    public LocalDateTime getDataInsccricao() {
-        return dataInsccricao;
+    public LocalDate getDataInscricao() {
+        return dataInscricao;
     }
 
-    public void setDataInsccricao(LocalDateTime dataInsccricao) {
-        this.dataInsccricao = dataInsccricao;
-    }
-
-    @Override
-    public String toString() {
-        return "CursoUsuario{" +
-                "id=" + id +
-                ", idUsuario=" + idUsuario +
-                ", idCurso=" + idCurso +
-                ", papel='" + papel + '\'' +
-                ", dataInsccricao=" + dataInsccricao +
-                '}';
+    public void setDataInscricao(LocalDate dataInscricao) {
+        this.dataInscricao = dataInscricao;
     }
 
     public byte[] toByteArray() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
         dos.writeInt(id);
-        dos.writeInt(idUsuario);
         dos.writeInt(idCurso);
-        dos.writeUTF(papel);
-        dos.writeLong(dataInsccricao.toEpochSecond(java.time.ZoneOffset.UTC));
+        dos.writeInt(idUsuario);
+        dos.writeInt((int) dataInscricao.toEpochDay());
         return baos.toByteArray();
     }
 
@@ -104,10 +76,8 @@ public class CursoUsuario implements InterfaceEntidade {
         ByteArrayInputStream bais = new ByteArrayInputStream(vb);
         DataInputStream dis = new DataInputStream(bais);
         id = dis.readInt();
-        idUsuario = dis.readInt();
         idCurso = dis.readInt();
-        papel = dis.readUTF();
-        long epochSecond = dis.readLong();
-        dataInsccricao = LocalDateTime.ofEpochSecond(epochSecond, 0, java.time.ZoneOffset.UTC);
+        idUsuario = dis.readInt();
+        dataInscricao = LocalDate.ofEpochDay(dis.readInt());
     }
 }

@@ -7,14 +7,13 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
- * Par para índice de código compartilhável (NanoID) para Curso.
- * Usado no HashExtensivel para busca rápida por código.
+ * Par para índice de código compartilhável para Curso.
  */
 public class ParCodigoId implements InterfaceHashExtensivel {
 
-    private String codigo;  // chave - código NanoID de 10 caracteres
-    private int id;         // valor - ID do curso
-    private final short TAMANHO = 14;  // 10 bytes codigo + 4 bytes int
+    private String codigo;
+    private int id;
+    private final short TAMANHO = 14; // 10 bytes do código + 4 bytes do int
 
     public ParCodigoId() throws Exception {
         this.codigo = "";
@@ -39,26 +38,47 @@ public class ParCodigoId implements InterfaceHashExtensivel {
         return Math.abs(this.codigo.hashCode());
     }
 
+    @Override
     public short size() {
         return this.TAMANHO;
     }
 
+    @Override
     public String toString() {
         return "(" + this.codigo + ";" + this.id + ")";
     }
 
+    @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
-        dos.writeUTF(this.codigo);
+
+        byte[] vb = new byte[10];
+        byte[] codigoBytes = this.codigo.getBytes();
+
+        int i = 0;
+        while (i < codigoBytes.length && i < 10) {
+            vb[i] = codigoBytes[i];
+            i++;
+        }
+        while (i < 10) {
+            vb[i] = ' ';
+            i++;
+        }
+
+        dos.write(vb);
         dos.writeInt(this.id);
         return baos.toByteArray();
     }
 
+    @Override
     public void fromByteArray(byte[] ba) throws IOException {
         ByteArrayInputStream bais = new ByteArrayInputStream(ba);
         DataInputStream dis = new DataInputStream(bais);
-        this.codigo = dis.readUTF();
+
+        byte[] vb = new byte[10];
+        dis.read(vb);
+        this.codigo = (new String(vb)).trim();
         this.id = dis.readInt();
     }
 }

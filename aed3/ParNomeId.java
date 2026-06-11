@@ -1,15 +1,5 @@
 package aed3;
-/*
-Esta classe representa um objeto para uma entidade
-que será armazenado em uma árvore B+
 
-Neste caso em particular, este objeto é representado
-por uma string e um inteiro para que possa ser usado
-como índice indireto de nomes para uma entidade qualquer.
-
-Implementado pelo Prof. Marcos Kutova
-v1.0 - 2024
-*/
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -22,7 +12,7 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
 
   private String nome;
   private int id;
-  private short TAMANHO = 30;
+  private short TAMANHO = 104;
 
   public ParNomeId() throws Exception {
     this("", -1);
@@ -33,19 +23,19 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
   }
 
   public ParNomeId(String n, int i) throws Exception {
-    if(n.getBytes().length>26)
+    if(n.getBytes().length>100)
       throw new Exception("Nome extenso demais. Diminua o número de caracteres.");
-    this.nome = n; // ID do Usuário
-    this.id = i; // ID da Pergunta
+    this.nome = n;
+    this.id = i;
   }
 
-    public int getId() {
-        return id;
-    }
+  public int getId() {
+    return id;
+  }
 
-    public String getNome() {
-        return nome;
-    }
+  public String getNome() {
+    return nome;
+  }
 
   @Override
   public ParNomeId clone() {
@@ -65,12 +55,10 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
     String str1 = transforma(this.nome);
     String str2 = transforma(a.nome);
 
-    // reduz o tamanho da segunda string (somente para as buscas)
     if(str2.length() > str1.length())
       if(this.id == -1)
         str2 = str2.substring(0, str1.length());
-        
-    // compara as strings
+
     if(str1.compareTo(str2)==0)
       if(this.id == -1)
         return 0;
@@ -87,14 +75,14 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
   public byte[] toByteArray() throws IOException {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream dos = new DataOutputStream(baos);
-    byte[] vb = new byte[26];
+    byte[] vb = new byte[100];
     byte[] vbNome = this.nome.getBytes();
     int i=0;
     while(i<vbNome.length) {
       vb[i] = vbNome[i];
       i++;
     }
-    while(i<26) {
+    while(i<100) {
       vb[i] = ' ';
       i++;
     }
@@ -106,7 +94,7 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
   public void fromByteArray(byte[] ba) throws IOException {
     ByteArrayInputStream bais = new ByteArrayInputStream(ba);
     DataInputStream dis = new DataInputStream(bais);
-    byte[] vb = new byte[26];
+    byte[] vb = new byte[100];
     dis.read(vb);
     this.nome = (new String(vb)).trim();
     this.id = dis.readInt();
@@ -117,5 +105,4 @@ public class ParNomeId implements InterfaceArvoreBMais<ParNomeId> {
     Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
     return pattern.matcher(nfdNormalizedString).replaceAll("").toLowerCase();
   }
-
 }

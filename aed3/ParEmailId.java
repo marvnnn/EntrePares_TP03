@@ -8,9 +8,9 @@ import java.io.IOException;
 
 public class ParEmailId implements InterfaceHashExtensivel {
 
-    private String email;  // chave
-    private int id;        // valor
-    private final short TAMANHO = 51;  // email max 47 bytes + 4 bytes int
+    private String email;
+    private int id;
+    private final short TAMANHO = 51; // 47 bytes do email + 4 bytes do int
 
     public ParEmailId() throws Exception {
         this.email = "";
@@ -35,26 +35,47 @@ public class ParEmailId implements InterfaceHashExtensivel {
         return Math.abs(this.email.hashCode());
     }
 
+    @Override
     public short size() {
         return this.TAMANHO;
     }
 
+    @Override
     public String toString() {
         return "(" + this.email + ";" + this.id + ")";
     }
 
+    @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
-        dos.writeUTF(this.email);
+
+        byte[] vb = new byte[47];
+        byte[] emailBytes = this.email.getBytes();
+
+        int i = 0;
+        while (i < emailBytes.length && i < 47) {
+            vb[i] = emailBytes[i];
+            i++;
+        }
+        while (i < 47) {
+            vb[i] = ' ';
+            i++;
+        }
+
+        dos.write(vb);
         dos.writeInt(this.id);
         return baos.toByteArray();
     }
 
+    @Override
     public void fromByteArray(byte[] ba) throws IOException {
         ByteArrayInputStream bais = new ByteArrayInputStream(ba);
         DataInputStream dis = new DataInputStream(bais);
-        this.email = dis.readUTF();
+
+        byte[] vb = new byte[47];
+        dis.read(vb);
+        this.email = (new String(vb)).trim();
         this.id = dis.readInt();
     }
 }

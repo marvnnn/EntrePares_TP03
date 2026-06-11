@@ -16,20 +16,20 @@ public class Usuario implements InterfaceEntidade {
     private int hashRespostaSecreta;
 
     public Usuario() {
-        this(-1, "", "", -1, "", -1);
+        this(-1, "", "", "", "", "");
     }
 
-    public Usuario(String n, String e, int h, String p, int hR) {
-        this(-1, n, e, h, p, hR);
+    public Usuario(String n, String e, String s, String p, String r) {
+        this(-1, n, e, s, p, r);
     }
 
-    public Usuario(int i, String n, String e, int h, String p, int hR) {
+    public Usuario(int i, String n, String e, String s, String p, String r) {
         id = i;
         nome = n;
         email = e;
-        hashSenha = h;
+        hashSenha = s.hashCode();
         perguntaSecreta = p;
-        hashRespostaSecreta = hR;
+        hashRespostaSecreta = r.hashCode();
     }
 
     public int getID() {
@@ -64,7 +64,6 @@ public class Usuario implements InterfaceEntidade {
         hashSenha = senha.hashCode();
     }
 
-
     public String getPerguntaSecreta() {
         return perguntaSecreta;
     }
@@ -80,20 +79,6 @@ public class Usuario implements InterfaceEntidade {
     public void setRespostaSecreta(String resposta) {
         hashRespostaSecreta = resposta.hashCode();
     }
-
-    public void setPergunta(String p) {
-        perguntaSecreta = p;
-    }
-
-    public String getPergunta() {
-        return perguntaSecreta;
-    }
-
-    public void setResposta(String r) {
-        this.hashRespostaSecreta = r.hashCode();
-    }
-
-
 
     @Override
     public String toString() {

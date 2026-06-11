@@ -1,114 +1,139 @@
 package arquivo;
 
-import aed3.*;
+import aed3.Arquivo;
+import aed3.ArvoreBMais;
+import aed3.ParIdId;
 import entidades.CursoUsuario;
 
 import java.util.ArrayList;
 
 public class ArquivoCursoUsuario extends Arquivo<CursoUsuario> {
 
-    ArvoreBMais<ParUsuarioCursoId> indiceUsuario;
-    ArvoreBMais<ParCursoUsuarioId> indiceCurso;
+    private ArvoreBMais<ParIdId> indiceCurso;
+    private ArvoreBMais<ParIdId> indiceUsuario;
 
     public ArquivoCursoUsuario() throws Exception {
         super("cursoUsuario", CursoUsuario.class.getConstructor());
-        indiceUsuario = new ArvoreBMais<>(
-                ParUsuarioCursoId.class.getConstructor(),
-                4,
-                "./dados/cursoUsuario/indiceUsuario.db");
+
         indiceCurso = new ArvoreBMais<>(
-                ParCursoUsuarioId.class.getConstructor(),
-                4,
-                "./dados/cursoUsuario/indiceCurso.db");
+            ParIdId.class.getConstructor(),
+            4,
+            "./dados/cursoUsuario/indiceCurso.db"
+        );
+
+        indiceUsuario = new ArvoreBMais<>(
+            ParIdId.class.getConstructor(),
+            4,
+            "./dados/cursoUsuario/indiceUsuario.db"
+        );
     }
 
     @Override
     public int create(CursoUsuario cursoUsuario) throws Exception {
+        CursoUsuario existente = readPorUsuarioCurso(cursoUsuario.getIdUsuario(), cursoUsuario.getIdCurso());
+        if (existente != null) {
+            return existente.getID();
+        }
+
         int id = super.create(cursoUsuario);
-        indiceUsuario.create(new ParUsuarioCursoId(cursoUsuario.getIdUsuario(), cursoUsuario.getIdCurso()));
-        indiceCurso.create(new ParCursoUsuarioId(cursoUsuario.getIdCurso(), cursoUsuario.getIdUsuario()));
+        indiceCurso.create(new ParIdId(cursoUsuario.getIdCurso(), id));
+        indiceUsuario.create(new ParIdId(cursoUsuario.getIdUsuario(), id));
         return id;
     }
 
-    /**
-     * Retorna todas as associações de um usuário específico, ordenadas por ID do curso.
-     */
-    public CursoUsuario[] readPorUsuario(int idUsuario) throws Exception {
-        ArrayList<ParUsuarioCursoId> pucis = indiceUsuario.read(new ParUsuarioCursoId(idUsuario, -1));
-        if (pucis.isEmpty())
-            return new CursoUsuario[0];
-
-        CursoUsuario[] assocs = new CursoUsuario[pucis.size()];
-        int i = 0;
-        for (ParUsuarioCursoId puc : pucis) {
-            assocs[i++] = super.read(puc.getIdCurso());
-        }
-        return assocs;
-    }
-
-    /**
-     * Retorna todos os usuários associados a um curso específico, ordenados por ID do usuário.
-     */
     public CursoUsuario[] readPorCurso(int idCurso) throws Exception {
-        ArrayList<ParCursoUsuarioId> pcuis = indiceCurso.read(new ParCursoUsuarioId(idCurso, -1));
-        if (pcuis.isEmpty())
-            return new CursoUsuario[0];
+        ArrayList<ParIdId> pares = indiceCurso.read(new ParIdId(idCurso, -1));
+        CursoUsuario[] inscricoes = new CursoUsuario[pares.size()];
 
-        CursoUsuario[] assocs = new CursoUsuario[pcuis.size()];
         int i = 0;
-        for (ParCursoUsuarioId pcu : pcuis) {
-            assocs[i++] = super.read(pcu.getIdUsuario());
+        for (ParIdId par : pares) {
+            inscricoes[i++] = super.read(par.getId2());
         }
-        return assocs;
+
+        return inscricoes;
     }
 
-    /**
-     * Verifica se existe uma associação específica entre usuário e curso.
-     */
-    public boolean exists(int idUsuario, int idCurso) throws Exception {
-        CursoUsuario[] assocs = readPorUsuario(idUsuario);
-        for (CursoUsuario assoc : assocs) {
-            if (assoc.getIdCurso() == idCurso) {
-                return true;
+    public CursoUsuario[] readPorUsuario(int idUsuario) throws Exception {
+        ArrayList<ParIdId> pares = indiceUsuario.read(new ParIdId(idUsuario, -1));
+        CursoUsuario[] inscricoes = new CursoUsuario[pares.size()];
+
+        int i = 0;
+        for (ParIdId par : pares) {
+            inscricoes[i++] = super.read(par.getId2());
+        }
+
+        return inscricoes;
+    }
+
+    public CursoUsuario readPorUsuarioCurso(int idUsuario, int idCurso) throws Exception {
+        CursoUsuario[] inscricoes = readPorUsuario(idUsuario);
+
+        for (CursoUsuario inscricao : inscricoes) {
+            if (inscricao != null && inscricao.getIdCurso() == idCurso) {
+                return inscricao;
             }
         }
-        return false;
+
+        return null;
     }
 
     @Override
     public boolean delete(int id) throws Exception {
-        CursoUsuario assoc = read(id);
-        if (assoc != null) {
-            if (super.delete(id)) {
-                indiceUsuario.delete(new ParUsuarioCursoId(assoc.getIdUsuario(), assoc.getIdCurso()));
-                indiceCurso.delete(new ParCursoUsuarioId(assoc.getIdCurso(), assoc.getIdUsuario()));
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public boolean update(CursoUsuario novoAssoc) throws Exception {
-        CursoUsuario assoc = read(novoAssoc.getID());
-        if (assoc == null)
-            return false;
-        if (super.update(novoAssoc)) {
-            // Atualiza índices se necessário
-            if (assoc.getIdUsuario() != novoAssoc.getIdUsuario() || assoc.getIdCurso() != novoAssoc.getIdCurso()) {
-                indiceUsuario.delete(new ParUsuarioCursoId(assoc.getIdUsuario(), assoc.getIdCurso()));
-                indiceCurso.delete(new ParCursoUsuarioId(assoc.getIdCurso(), assoc.getIdUsuario()));
-                indiceUsuario.create(new ParUsuarioCursoId(novoAssoc.getIdUsuario(), novoAssoc.getIdCurso()));
-                indiceCurso.create(new ParCursoUsuarioId(novoAssoc.getIdCurso(), novoAssoc.getIdUsuario()));
-            }
+        CursoUsuario inscricao = read(id);
+        if (inscricao != null && super.delete(id)) {
+            indiceCurso.delete(new ParIdId(inscricao.getIdCurso(), id));
+            indiceUsuario.delete(new ParIdId(inscricao.getIdUsuario(), id));
             return true;
         }
         return false;
     }
 
+    public void deletePorCurso(int idCurso) throws Exception {
+        CursoUsuario[] inscricoes = readPorCurso(idCurso);
+        for (CursoUsuario inscricao : inscricoes) {
+            if (inscricao != null) {
+                delete(inscricao.getID());
+            }
+        }
+    }
+
+    public void deletePorUsuario(int idUsuario) throws Exception {
+        CursoUsuario[] inscricoes = readPorUsuario(idUsuario);
+        for (CursoUsuario inscricao : inscricoes) {
+            if (inscricao != null) {
+                delete(inscricao.getID());
+            }
+        }
+    }
+
+    @Override
+    public boolean update(CursoUsuario novo) throws Exception {
+        CursoUsuario antigo = read(novo.getID());
+        if (antigo == null) {
+            return false;
+        }
+
+        if (super.update(novo)) {
+            if (antigo.getIdCurso() != novo.getIdCurso()) {
+                indiceCurso.delete(new ParIdId(antigo.getIdCurso(), antigo.getID()));
+                indiceCurso.create(new ParIdId(novo.getIdCurso(), novo.getID()));
+            }
+
+            if (antigo.getIdUsuario() != novo.getIdUsuario()) {
+                indiceUsuario.delete(new ParIdId(antigo.getIdUsuario(), antigo.getID()));
+                indiceUsuario.create(new ParIdId(novo.getIdUsuario(), novo.getID()));
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
     public void close() throws Exception {
         super.close();
-        indiceUsuario.close();
         indiceCurso.close();
+        indiceUsuario.close();
     }
 }

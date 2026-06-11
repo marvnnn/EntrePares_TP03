@@ -2,85 +2,53 @@ package arquivo;
 
 import aed3.*;
 import entidades.Curso;
-import entidades.CursoUsuario;
 
+import java.io.File;
+import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.StringTokenizer;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 public class ArquivoCurso extends Arquivo<Curso> {
 
-    HashExtensivel<ParCodigoId> indiceCodigo;
-    ArvoreBMais<ParNomeId> indiceNome;
-    ListaInvertida indiceNomeInvertido; // Inverted index for course name words
-    ArquivoCursoUsuario arqCursoUsuario;
+    private HashExtensivel<ParCodigoId> indiceCodigo;
+    private ArvoreBMais<ParNomeId> indiceNome;
+    private ArvoreBMais<ParIdUsuarioId> indiceUsuario;
+    private ListaInvertida indiceInvertido;
+
+    private static final HashSet<String> STOP_WORDS = new HashSet<>(Arrays.asList(
+        "a", "o", "as", "os", "um", "uma", "uns", "umas",
+        "de", "da", "do", "das", "dos", "d", "em", "no", "na", "nos", "nas",
+        "por", "para", "com", "sem", "sob", "sobre", "entre", "ate", "apos",
+        "e", "ou", "mas", "que", "se", "ao", "aos", "pela", "pelo", "pelas", "pelos",
+        "mais", "menos", "muito", "muita", "muitos", "muitas"
+    ));
 
     public ArquivoCurso() throws Exception {
         super("curso", Curso.class.getConstructor());
         indiceCodigo = new HashExtensivel<>(
-                ParCodigoId.class.getConstructor(),
-                4,
-                "./dados/curso/indiceCodigo.d.db",
-                "./dados/curso/indiceCodigo.c.db");
+            ParCodigoId.class.getConstructor(),
+            4,
+            "./dados/curso/indiceCodigo.d.db",
+            "./dados/curso/indiceCodigo.c.db"
+        );
         indiceNome = new ArvoreBMais<>(
-                ParNomeId.class.getConstructor(),
-                4,
-                "./dados/curso/indiceNome.db");
-        // Inverted index for course name words (using words from nome)
-        indiceNomeInvertido = new ListaInvertida(
-                10, // quantidadeDadosPorBloco
-                "./dados/curso/indiceNomeInvertido.d.db", // dicionario
-                "./dados/curso/indiceNomeInvertido.c.db"); // blocos
-        arqCursoUsuario = new ArquivoCursoUsuario();
-    }
-
-    /**
-     * Tokeniza o nome do curso em palavras individuais
-     * Remove pontuação, converte para lowercase e ignora palavras muito pequenas
-     */
-    private ArrayList<String> tokenizarNome(String nome) {
-        ArrayList<String> palavras = new ArrayList<>();
-        if (nome == null || nome.isEmpty()) {
-            return palavras;
-        }
-
-        // Divide por espaços e pontuação básica
-        StringTokenizer st = new StringTokenizer(nome, " .,;:!?()-");
-        while (st.hasMoreTokens()) {
-            String palavra = st.nextToken().trim().toLowerCase();
-            // Ignora palavras muito pequenas (menos de 2 caracteres) ou vazias
-            if (palavra.length() >= 2) {
-                palavras.add(palavra);
-            }
-        }
-        return palavras;
-    }
-
-    /**
-     * Conta a frequência de cada palavra no nome do curso
-     */
-    private void indexarNomeCurso(String nome, int idCurso) throws Exception {
-        ArrayList<String> palavras = tokenizarNome(nome);
-        // Conta frequência de cada palavra
-        java.util.Map<String, Integer> frequencias = new java.util.HashMap<>();
-        for (String palavra : palavras) {
-            frequencias.put(palavra, frequencias.getOrDefault(palavra, 0) + 1);
-        }
-
-        // Indexa cada palavra com sua frequência
-        for (java.util.Map.Entry<String, Integer> entry : frequencias.entrySet()) {
-            String palavra = entry.getKey();
-            int frequencia = entry.getValue();
-            indiceNomeInvertido.create(palavra, new ElementoLista(idCurso, frequencia));
-        }
-    }
-
-    /**
-     * Remove todas as ocorrências de um curso do índice invertido
-     */
-    private void removerNomeCursoDoIndice(String nome, int idCurso) throws Exception {
-        ArrayList<String> palavras = tokenizarNome(nome);
-        for (String palavra : palavras) {
-            indiceNomeInvertido.delete(palavra, idCurso);
+            ParNomeId.class.getConstructor(),
+            4,
+            "./dados/curso/indiceNome.db"
+        );
+        indiceUsuario = new ArvoreBMais<>(
+            ParIdUsuarioId.class.getConstructor(),
+            4,
+            "./dados/curso/indiceUsuario.db"
+        );
+        abrirIndiceInvertido();
+        if (indiceInvertido.numeroEntidades() != readAll().length) {
+            reconstruirIndiceInvertido();
         }
     }
 
@@ -89,22 +57,25 @@ public class ArquivoCurso extends Arquivo<Curso> {
         int id = super.create(curso);
         indiceCodigo.create(new ParCodigoId(curso.getCodigoCompartilhavel(), id));
         indiceNome.create(new ParNomeId(curso.getNome(), id));
-        // Indexa o nome do curso no índice invertido
-        indexarNomeCurso(curso.getNome(), id);
+        indiceUsuario.create(new ParIdUsuarioId(curso.getIdUsuario(), id));
+        inserirNoIndiceInvertido(curso);
+        indiceInvertido.incrementaEntidades();
         return id;
     }
 
     public Curso readCodigo(String codigo) throws Exception {
         ParCodigoId pci = indiceCodigo.read(Math.abs(codigo.hashCode()));
-        if (pci == null)
+        if (pci == null) {
             return null;
+        }
         return read(pci.getId());
     }
 
     public Curso[] readNome(String nome) throws Exception {
         ArrayList<ParNomeId> pnis = indiceNome.read(new ParNomeId(nome, -1));
-        if (pnis.isEmpty())
+        if (pnis.isEmpty()) {
             return new Curso[0];
+        }
 
         Curso[] cursos = new Curso[pnis.size()];
         int i = 0;
@@ -114,162 +85,75 @@ public class ArquivoCurso extends Arquivo<Curso> {
         return cursos;
     }
 
-    /**
-     * Busca cursos por palavras-chave no nome usando TF-IDF para ranking
-     * @param consulta String contendo as palavras-chave para busca
-     * @return Array de cursos ordenados por relevância TF-IDF (decrescente)
-     * @throws Exception
-     */
-    public Curso[] buscarPorPalavrasChave(String consulta) throws Exception {
-        if (consulta == null || consulta.trim().isEmpty()) {
+    public Curso[] readPorPalavras(String busca) throws Exception {
+        String[] termos = termosUnicos(busca);
+        if (termos.length == 0) {
             return new Curso[0];
         }
 
-        // Tokeniza a consulta
-        ArrayList<String> termosConsulta = tokenizarNome(consulta);
-        if (termosConsulta.isEmpty()) {
+        int totalEntidades = indiceInvertido.numeroEntidades();
+        if (totalEntidades <= 0) {
+            reconstruirIndiceInvertido();
+            totalEntidades = indiceInvertido.numeroEntidades();
+        }
+        if (totalEntidades <= 0) {
             return new Curso[0];
         }
 
-        // Coleta todos os cursos que contêm pelo menos um termo da consulta
-        java.util.Map<Integer, Curso> cursosCandidatos = new java.util.HashMap<>();
-        java.util.Map<Integer, Double> scoresTFIDF = new java.util.HashMap<>();
+        HashMap<Integer, Float> pontuacoes = new HashMap<>();
 
-        // Primeiro, obtenha o total de cursos para cálculo do IDF
-        int totalCursos = 0;
-        try {
-            totalCursos = this.readAll().length;
-        } catch (Exception e) {
-            totalCursos = 0;
+        for (String termo : termos) {
+            ElementoLista[] lista = indiceInvertido.read(termo);
+            if (lista.length == 0) {
+                continue;
+            }
+
+            float idf = (float) (Math.log10((double) totalEntidades / lista.length) + 1);
+            for (ElementoLista elemento : lista) {
+                float valor = elemento.getFrequencia() * idf;
+                pontuacoes.put(elemento.getId(), pontuacoes.getOrDefault(elemento.getId(), 0f) + valor);
+            }
         }
 
-        if (totalCursos == 0) {
+        ArrayList<Map.Entry<Integer, Float>> entradas = new ArrayList<>(pontuacoes.entrySet());
+        entradas.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+
+        ArrayList<Curso> cursos = new ArrayList<>();
+        for (Map.Entry<Integer, Float> entrada : entradas) {
+            Curso curso = super.read(entrada.getKey());
+            if (curso != null) {
+                cursos.add(curso);
+            }
+        }
+
+        if (cursos.isEmpty()) {
+            return readPorPalavrasSemIndice(busca);
+        }
+
+        return cursos.toArray(new Curso[0]);
+    }
+
+    public Curso[] readPorUsuario(int idUsuario) throws Exception {
+        ArrayList<ParIdUsuarioId> piuis = indiceUsuario.read(new ParIdUsuarioId(idUsuario, -1));
+        if (piuis.isEmpty()) {
             return new Curso[0];
         }
 
-        // Para cada termo na consulta, obtenha os cursos que o contêm
-        for (String termo : termosConsulta) {
-            ElementoLista[] elementos = indiceNomeInvertido.read(termo);
-            if (elementos != null && elementos.length > 0) {
-                // Calcula IDF para este termo
-                int docsComTermo = elementos.length;
-                double idf = Math.log((double) totalCursos / docsComTermo);
-
-                // Para cada curso que contém este termo, acumule o score TF-IDF
-                for (ElementoLista elemento : elementos) {
-                    int idCurso = elemento.getId();
-                    double tf = elemento.getFrequencia(); // Frequência do termo no curso
-                    double tfidf = tf * idf;
-
-                    // Acumula o score (soma dos TF-IDF de todos os termos da consulta presentes no curso)
-                    double scoreAtual = scoresTFIDF.getOrDefault(idCurso, 0.0);
-                    scoresTFIDF.put(idCurso, scoreAtual + tfidf);
-
-                    // Guarda o curso candidato se ainda não estiver na lista
-                    if (!cursosCandidatos.containsKey(idCurso)) {
-                        Curso curso = super.read(idCurso);
-                        if (curso != null) {
-                            cursosCandidatos.put(idCurso, curso);
-                        }
-                    }
-                }
-            }
+        Curso[] cursos = new Curso[piuis.size()];
+        int i = 0;
+        for (ParIdUsuarioId piui : piuis) {
+            cursos[i++] = super.read(piui.getIdCurso());
         }
 
-        // Converte o mapa de cursos candidatos para array e ordena por score TF-IDF (decrescente)
-        java.util.List<Curso> listaCursos = new ArrayList<>(cursosCandidatos.values());
-        listaCursos.sort((c1, c2) -> {
-            double score1 = scoresTFIDF.getOrDefault(c1.getID(), 0.0);
-            double score2 = scoresTFIDF.getOrDefault(c2.getID(), 0.0);
-            // Ordenação decrescente (maior score primeiro)
-            return Double.compare(score2, score1);
-        });
-
-        // Converte para array e retorna
-        Curso[] resultado = new Curso[listaCursos.size()];
-        return listaCursos.toArray(resultado);
-    }
-
-    /**
-     * Associa um usuário a um curso com um determinado papel.
-     * @param idUsuario ID do usuário
-     * @param idCurso ID do curso
-     * @param papel Papel do usuário no curso (INSTRUTOR, PARTICIPANTE)
-     * @return ID da associação criada
-     * @throws Exception
-     */
-    public int associarUsuario(int idUsuario, int idCurso, String papel) throws Exception {
-        // Verifica se a associação já existe
-        if (arqCursoUsuario.exists(idUsuario, idCurso)) {
-            throw new Exception("Usuário já está associado a este curso");
-        }
-
-        CursoUsuario assoc = new CursoUsuario(idUsuario, idCurso, papel);
-        return arqCursoUsuario.create(assoc);
-    }
-
-    /**
-     * Remove a associação entre um usuário e um curso.
-     * @param idUsuario ID do usuário
-     * @param idCurso ID do curso
-     * @return true se a associação foi removida, false caso contrário
-     * @throws Exception
-     */
-    public boolean desassociarUsuario(int idUsuario, int idCurso) throws Exception {
-        // Primeiro encontramos a associação
-        CursoUsuario[] assocs = arqCursoUsuario.readPorUsuario(idUsuario);
-        for (CursoUsuario assoc : assocs) {
-            if (assoc.getIdCurso() == idCurso) {
-                return arqCursoUsuario.delete(assoc.getID());
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Retorna todos os usuários associados a um curso específico.
-     */
-    public CursoUsuario[] getUsuariosDoCurso(int idCurso) throws Exception {
-        return arqCursoUsuario.readPorCurso(idCurso);
-    }
-
-    /**
-     * Retorna todos os cursos associados a um usuário específico.
-     */
-    public CursoUsuario[] getCursosDoUsuario(int idUsuario) throws Exception {
-        return arqCursoUsuario.readPorUsuario(idUsuario);
-    }
-
-    /**
-     * Verifica se um usuário tem um determinado papel em um curso.
-     */
-    public boolean usuarioTemPapel(int idUsuario, int idCurso, String papel) throws Exception {
-        CursoUsuario[] assocs = arqCursoUsuario.readPorUsuario(idUsuario);
-        for (CursoUsuario assoc : assocs) {
-            if (assoc.getIdCurso() == idCurso && assoc.getPapel().equals(papel)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Retorna o ID do instrutor de um curso (usuário com papel INSTRUTOR).
-     */
-    public Integer getInstrutorDoCurso(int idCurso) throws Exception {
-        CursoUsuario[] assocs = arqCursoUsuario.readPorCurso(idCurso);
-        for (CursoUsuario assoc : assocs) {
-            if (assoc.getPapel().equals(CursoUsuario.INSTRUTOR)) {
-                return assoc.getIdUsuario();
-            }
-        }
-        return null; // Nenhum instrutor encontrado
+        Arrays.sort(cursos, Comparator.comparing(c -> ParNomeId.transforma(c.getNome())));
+        return cursos;
     }
 
     public Curso[] readAll() throws Exception {
         ArrayList<ParNomeId> pnis = indiceNome.read(null);
-        if (pnis.isEmpty())
+        if (pnis.isEmpty()) {
             return new Curso[0];
+        }
 
         Curso[] cursos = new Curso[pnis.size()];
         int i = 0;
@@ -282,57 +166,215 @@ public class ArquivoCurso extends Arquivo<Curso> {
     @Override
     public boolean delete(int id) throws Exception {
         Curso curso = read(id);
-        if (curso != null) {
-            // Primeiro remove todas as associações relacionadas a este curso
-            CursoUsuario[] assocs = arqCursoUsuario.readPorCurso(curso.getID());
-            for (CursoUsuario assoc : assocs) {
-                arqCursoUsuario.delete(assoc.getID());
-            }
-
-            if (super.delete(id)) {
-                indiceCodigo.delete(Math.abs(curso.getCodigoCompartilhavel().hashCode()));
-                indiceNome.delete(new ParNomeId(curso.getNome(), curso.getID()));
-                // Remove o nome do curso do índice invertido
-                removerNomeCursoDoIndice(curso.getNome(), curso.getID());
-                return true;
-            }
+        if (curso != null && super.delete(id)) {
+            removerDoIndiceInvertido(curso);
+            indiceInvertido.decrementaEntidades();
+            indiceCodigo.delete(Math.abs(curso.getCodigoCompartilhavel().hashCode()));
+            indiceNome.delete(new ParNomeId(curso.getNome(), curso.getID()));
+            indiceUsuario.delete(new ParIdUsuarioId(curso.getIdUsuario(), curso.getID()));
+            return true;
         }
         return false;
     }
 
     @Override
     public boolean update(Curso novoCurso) throws Exception {
-        Curso curso = read(novoCurso.getID());
-        if (curso == null)
-            return false;
-
-        boolean atualizado = super.update(novoCurso);
-        if (!atualizado) {
+        Curso antigo = read(novoCurso.getID());
+        if (antigo == null) {
             return false;
         }
 
-        // Atualiza índices se o código ou nome mudou
-        if (!curso.getCodigoCompartilhavel().equals(novoCurso.getCodigoCompartilhavel())) {
-            indiceCodigo.delete(Math.abs(curso.getCodigoCompartilhavel().hashCode()));
-            indiceCodigo.create(new ParCodigoId(novoCurso.getCodigoCompartilhavel(), novoCurso.getID()));
-        }
-        if (!curso.getNome().equals(novoCurso.getNome())) {
-            indiceNome.delete(new ParNomeId(curso.getNome(), curso.getID()));
-            indiceNome.create(new ParNomeId(novoCurso.getNome(), novoCurso.getID()));
+        if (super.update(novoCurso)) {
+            if (!antigo.getCodigoCompartilhavel().equals(novoCurso.getCodigoCompartilhavel())) {
+                indiceCodigo.delete(Math.abs(antigo.getCodigoCompartilhavel().hashCode()));
+                indiceCodigo.create(new ParCodigoId(novoCurso.getCodigoCompartilhavel(), novoCurso.getID()));
+            }
 
-            // Atualiza o índice invertido: remove o nome antigo, adiciona o novo
-            removerNomeCursoDoIndice(curso.getNome(), curso.getID());
-            indexarNomeCurso(novoCurso.getNome(), novoCurso.getID());
-        }
+            if (!antigo.getNome().equals(novoCurso.getNome())) {
+                indiceNome.delete(new ParNomeId(antigo.getNome(), antigo.getID()));
+                indiceNome.create(new ParNomeId(novoCurso.getNome(), novoCurso.getID()));
+                removerDoIndiceInvertido(antigo);
+                inserirNoIndiceInvertido(novoCurso);
+            }
 
-        return true;
+            if (antigo.getIdUsuario() != novoCurso.getIdUsuario()) {
+                indiceUsuario.delete(new ParIdUsuarioId(antigo.getIdUsuario(), antigo.getID()));
+                indiceUsuario.create(new ParIdUsuarioId(novoCurso.getIdUsuario(), novoCurso.getID()));
+            }
+
+            return true;
+        }
+        return false;
     }
 
+    private void abrirIndiceInvertido() throws Exception {
+        indiceInvertido = new ListaInvertida(
+            4,
+            "./dados/curso/indiceInvertido.d.db",
+            "./dados/curso/indiceInvertido.c.db"
+        );
+    }
+
+    private void reconstruirIndiceInvertido() throws Exception {
+        indiceInvertido.close();
+        new File("./dados/curso/indiceInvertido.d.db").delete();
+        new File("./dados/curso/indiceInvertido.c.db").delete();
+        abrirIndiceInvertido();
+
+        Curso[] cursos = readAll();
+        for (Curso curso : cursos) {
+            if (curso != null) {
+                inserirNoIndiceInvertido(curso);
+                indiceInvertido.incrementaEntidades();
+            }
+        }
+    }
+
+    private void inserirNoIndiceInvertido(Curso curso) throws Exception {
+        HashMap<String, Float> frequencias = frequencias(curso.getNome());
+        for (Map.Entry<String, Float> entrada : frequencias.entrySet()) {
+            indiceInvertido.create(entrada.getKey(), new ElementoLista(curso.getID(), entrada.getValue()));
+        }
+    }
+
+    private void removerDoIndiceInvertido(Curso curso) throws Exception {
+        String[] termos = termosUnicos(curso.getNome());
+        for (String termo : termos) {
+            indiceInvertido.delete(termo, curso.getID());
+        }
+    }
+
+    private HashMap<String, Float> frequencias(String texto) {
+        String[] termos = termosValidos(texto);
+        HashMap<String, Float> frequencias = new HashMap<>();
+
+        if (termos.length == 0) {
+            return frequencias;
+        }
+
+        for (String termo : termos) {
+            frequencias.put(termo, frequencias.getOrDefault(termo, 0f) + 1f);
+        }
+
+        for (String termo : new ArrayList<>(frequencias.keySet())) {
+            frequencias.put(termo, frequencias.get(termo) / termos.length);
+        }
+
+        return frequencias;
+    }
+
+    private String[] termosUnicos(String texto) {
+        String[] termos = termosValidos(texto);
+        ArrayList<String> unicos = new ArrayList<>();
+
+        for (String termo : termos) {
+            if (!unicos.contains(termo)) {
+                unicos.add(termo);
+            }
+        }
+
+        return unicos.toArray(new String[0]);
+    }
+
+    private String[] termosValidos(String texto) {
+        String normalizado = normalizar(texto);
+        String[] palavras = normalizado.split("[^a-z0-9]+");
+        ArrayList<String> termos = new ArrayList<>();
+
+        for (String palavra : palavras) {
+            if (!palavra.isEmpty() && !STOP_WORDS.contains(palavra) && !palavra.matches("\\d+")) {
+                termos.add(palavra);
+            }
+        }
+
+        return termos.toArray(new String[0]);
+    }
+
+    private Curso[] readPorPalavrasSemIndice(String busca) throws Exception {
+        String[] termosBusca = termosUnicos(busca);
+        Curso[] todos = readAll();
+        HashMap<Integer, Float> pontuacoes = new HashMap<>();
+        HashMap<String, Integer> documentosPorTermo = new HashMap<>();
+        HashMap<Integer, HashMap<String, Float>> frequenciasPorCurso = new HashMap<>();
+
+        for (Curso curso : todos) {
+            HashMap<String, Float> freq = frequencias(curso.getNome());
+            frequenciasPorCurso.put(curso.getID(), freq);
+
+            for (String termoBusca : termosBusca) {
+                if (contemTermoCompatível(freq, termoBusca)) {
+                    documentosPorTermo.put(termoBusca, documentosPorTermo.getOrDefault(termoBusca, 0) + 1);
+                }
+            }
+        }
+
+        for (Curso curso : todos) {
+            HashMap<String, Float> freq = frequenciasPorCurso.get(curso.getID());
+            float total = 0;
+
+            for (String termoBusca : termosBusca) {
+                Float tf = frequenciaCompatível(freq, termoBusca);
+                if (tf != null) {
+                    int docs = documentosPorTermo.getOrDefault(termoBusca, 1);
+                    float idf = (float) (Math.log10((double) todos.length / docs) + 1);
+                    total += tf * idf;
+                }
+            }
+
+            if (total > 0) {
+                pontuacoes.put(curso.getID(), total);
+            }
+        }
+
+        ArrayList<Map.Entry<Integer, Float>> entradas = new ArrayList<>(pontuacoes.entrySet());
+        entradas.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+
+        ArrayList<Curso> cursos = new ArrayList<>();
+        for (Map.Entry<Integer, Float> entrada : entradas) {
+            Curso curso = super.read(entrada.getKey());
+            if (curso != null) {
+                cursos.add(curso);
+            }
+        }
+
+        return cursos.toArray(new Curso[0]);
+    }
+
+    private boolean contemTermoCompatível(HashMap<String, Float> frequencias, String termoBusca) {
+        return frequenciaCompatível(frequencias, termoBusca) != null;
+    }
+
+    private Float frequenciaCompatível(HashMap<String, Float> frequencias, String termoBusca) {
+        Float valor = frequencias.get(termoBusca);
+        if (valor != null) {
+            return valor;
+        }
+
+        for (Map.Entry<String, Float> entrada : frequencias.entrySet()) {
+            String termoCurso = entrada.getKey();
+            if (termoBusca.contains(termoCurso) && termoCurso.length() >= 4) {
+                return entrada.getValue();
+            }
+            if (termoCurso.contains(termoBusca) && termoBusca.length() >= 4) {
+                return entrada.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    private String normalizar(String texto) {
+        String nfd = Normalizer.normalize(texto, Normalizer.Form.NFD);
+        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        return pattern.matcher(nfd).replaceAll("").toLowerCase();
+    }
+
+    @Override
     public void close() throws Exception {
         super.close();
         indiceCodigo.close();
         indiceNome.close();
-        indiceNomeInvertido.close();
-        arqCursoUsuario.close();
+        indiceUsuario.close();
+        indiceInvertido.close();
     }
 }

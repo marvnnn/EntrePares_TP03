@@ -1,8 +1,8 @@
-import menu.MenuCursos;
-import menu.MenuUsuario;
 import arquivo.ArquivoUsuario;
-import arquivo.ArquivoCurso;
 import entidades.Usuario;
+import menu.MenuCursos;
+import menu.MenuInscricoes;
+import menu.MenuUsuario;
 
 import java.util.Scanner;
 
@@ -12,6 +12,7 @@ public class Principal {
         Scanner console = new Scanner(System.in);
         ArquivoUsuario arqUsuario = null;
         Usuario usuarioAtivo = null;
+        boolean executando = true;
 
         try {
             arqUsuario = new ArquivoUsuario();
@@ -20,95 +21,119 @@ public class Principal {
             return;
         }
 
-        int opcao;
-        do {
-            System.out.println("\n\n=== EntrePares 1.0 ===");
-            System.out.println("------------------");
-            if (usuarioAtivo != null) {
-                System.out.println("\n> Conectado como: " + usuarioAtivo.getNome() + " (" + usuarioAtivo.getEmail() + ")");
-                System.out.println("1 - Menu Usuario");
-                System.out.println("2 - Menu Cursos");
-                System.out.println("0 - Logout");
-            } else {
-                System.out.println("\n> Desconectado");
-                System.out.println("1 - Login");
-                System.out.println("2 - Registrar");
-                System.out.println("0 - Sair");
-            }
+        while (executando) {
+            System.out.println("\n\nEntrePares 3.0");
+            System.out.println("--------------");
 
-            System.out.print("\nOpção: ");
-            try {
-                opcao = Integer.parseInt(console.nextLine());
-            } catch (NumberFormatException e) {
-                opcao = -1;
-            }
-            if (usuarioAtivo != null) {
-                switch (opcao) {
-                    case 1:
-                        (new MenuUsuario()).menu();
+            if (usuarioAtivo == null) {
+                System.out.println("\n(A) Login");
+                System.out.println("(B) Novo usuário");
+                System.out.println("\n(S) Sair");
+                System.out.print("\nOpção: ");
+
+                String entrada = console.nextLine().trim().toUpperCase();
+
+                switch (entrada) {
+                    case "A":
+                        usuarioAtivo = login(console, arqUsuario);
+                        if (usuarioAtivo != null) {
+                            MenuCursos.setUsuarioAtivo(usuarioAtivo);
+                            MenuUsuario.setUsuarioAtivo(usuarioAtivo);
+                            System.out.println("Login realizado com sucesso!");
+                        } else {
+                            System.out.println("Email ou senha inválidos.");
+                        }
                         break;
-                    case 2:
+
+                    case "B":
+                        new MenuUsuario().cadastrarNovoUsuario();
+                        break;
+
+                    case "S":
+                        executando = false;
+                        break;
+
+                    default:
+                        System.out.println("Opção inválida!");
+                }
+            } else {
+                System.out.println("\n> Início");
+                System.out.println("\n(A) Meus dados");
+                System.out.println("(B) Meus cursos");
+                System.out.println("(C) Minhas inscrições");
+                System.out.println("(S) Sair");
+                System.out.print("\nOpção: ");
+
+                String entrada = console.nextLine().trim().toUpperCase();
+
+                switch (entrada) {
+                    case "A":
+                        MenuUsuario.setUsuarioAtivo(usuarioAtivo);
+                        new MenuUsuario().menu();
+                        usuarioAtivo = MenuUsuario.getUsuarioAtivo();
+                        if (usuarioAtivo == null) {
+                            MenuCursos.setUsuarioAtivo(null);
+                        }
+                        break;
+
+                    case "B":
                         MenuCursos.setUsuarioAtivo(usuarioAtivo);
-                        (new MenuCursos()).menu();
+                        new MenuCursos().menu();
                         break;
-                    case 0:
+
+                    case "C":
+                        MenuInscricoes.setUsuarioAtivo(usuarioAtivo);
+                        new MenuInscricoes().menu();
+                        break;
+
+                    case "S":
                         usuarioAtivo = null;
                         MenuCursos.setUsuarioAtivo(null);
+                        MenuUsuario.setUsuarioAtivo(null);
                         System.out.println("Logout realizado!");
                         break;
-                    default:
-                        System.out.println("Opção inválida");
-                }
-            } else {
-                switch (opcao) {
-                    case 1:
-                        // Login
-                        System.out.print("\nEmail: ");
-                        String email = console.nextLine();
-                        if (email.isEmpty()) {
-                            System.out.println("Email não pode estar vazio!");
-                            break;
-                        }
-                        System.out.print("Senha: ");
-                        String senha = console.nextLine();
-                        if (senha.isEmpty()) {
-                            System.out.println("Senha não pode estar vazia!");
-                            break;
-                        }
 
-                        Usuario usuario = arqUsuario.readEmail(email);
-                        if (usuario != null) {
-                            // Verifica senha (simplificado - em um sistema real usaríamos hash)
-                            if (senha.hashCode() == usuario.getHashSenha()) {
-                                usuarioAtivo = usuario;
-                                System.out.println("\nLogin realizado com sucesso!");
-                            } else {
-                                System.out.println("Senha incorreta!");
-                            }
-                        } else {
-                            System.out.println("Usuário não encontrado!");
-                        }
-                        break;
-                    case 2:
-                        // Registrar
-                        (new MenuUsuario()).menu();
-                        break;
-                    case 0:
-                        System.out.println("Saindo...");
-                        break;
                     default:
-                        System.out.println("Opção inválida");
+                        System.out.println("Opção inválida!");
                 }
             }
-        } while (opcao != 0);
+        }
 
-        // Fecha os arquivos para garantir persistência dos dados
         try {
             if (arqUsuario != null) {
                 arqUsuario.close();
             }
+            console.close();
         } catch (Exception e) {
-            System.err.println("Erro ao fechar arquivo de usuários: " + e.getMessage());
+            System.err.println("Erro ao fechar arquivos: " + e.getMessage());
         }
+    }
+
+    private static Usuario login(Scanner console, ArquivoUsuario arqUsuario) {
+        try {
+            System.out.print("Email: ");
+            String email = console.nextLine();
+            if (email.isEmpty()) {
+                return null;
+            }
+
+            System.out.print("Senha: ");
+            String senha = console.nextLine();
+            if (senha.isEmpty()) {
+                return null;
+            }
+
+            Usuario usuario = arqUsuario.readEmail(email);
+            if (usuario == null) {
+                return null;
+            }
+
+            if (usuario.getHashSenha() == senha.hashCode()) {
+                return usuario;
+            }
+        } catch (Exception e) {
+            System.err.println("Erro no login: " + e.getMessage());
+        }
+        return null;
     }
 }

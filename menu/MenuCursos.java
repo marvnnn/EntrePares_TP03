@@ -1,32 +1,29 @@
 package menu;
 
-import arquivo.*;
+import arquivo.ArquivoCurso;
+import arquivo.ArquivoCursoUsuario;
+import arquivo.ArquivoUsuario;
 import entidades.Curso;
 import entidades.CursoUsuario;
 import entidades.Usuario;
 import util.NanoIdUtil;
-import visao.VisaoUsuario;
 
+import java.io.FileWriter;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Scanner;
 
 public class MenuCursos {
 
-    ArquivoCurso arqCurso;
-    ArquivoUsuario arqUsuario;
-    Scanner console;
+    private ArquivoCurso arqCurso;
+    private ArquivoUsuario arqUsuario;
+    private ArquivoCursoUsuario arqCursoUsuario;
+    private Scanner console;
 
-    // Usuário atualmente logado no sistema
     private static Usuario usuarioAtivo = null;
-
-    public MenuCursos() {}
-
-    public MenuCursos(ArquivoCurso arqCurso, ArquivoUsuario arqUsuario, Scanner console) {
-        this.arqCurso = arqCurso;
-        this.arqUsuario = arqUsuario;
-        this.console = console;
-    }
+    private static final DateTimeFormatter FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public static void setUsuarioAtivo(Usuario usuario) {
         usuarioAtivo = usuario;
@@ -41,280 +38,343 @@ public class MenuCursos {
             console = new Scanner(System.in);
             arqCurso = new ArquivoCurso();
             arqUsuario = new ArquivoUsuario();
+            arqCursoUsuario = new ArquivoCursoUsuario();
 
-            int opcao;
+            String entrada;
             do {
-                System.out.println("\n\nEntrePares");
-                System.out.println("--------");
-                System.out.println("\n> Gestão de Cursos\n");
-                if (usuarioAtivo != null) {
-                    System.out.println("Usuário ativo: " + usuarioAtivo.getNome() + " (" + usuarioAtivo.getEmail() + ")\n");
-                } else {
-                    System.out.println("⚠️  Nenhum usuário ativo! Vincule um usuário ao criar um curso.\n");
-                }
-                System.out.println("1 - Inserir Curso");
-                System.out.println("2 - Buscar por Código");
-                System.out.println("3 - Buscar por Palavras-chave");
-                System.out.println("4 - Listar Meus Cursos");
-                System.out.println("5 - Alterar Curso");
-                System.out.println("6 - Excluir Curso");
-                System.out.println("7 - Listar Todos os Cursos (paginado)");
-                System.out.println("0 - Retornar ao menu anterior");
+                System.out.println("\n\nEntrePares 1.0");
+                System.out.println("--------------");
+                System.out.println("> Início > Meus cursos\n");
+
+                listarMeusCursosResumo();
+
+                System.out.println("\n(A) Novo curso");
+                System.out.println("(B) Buscar por código");
+                System.out.println("(C) Buscar por nome");
+                System.out.println("(R) Retornar");
                 System.out.print("\nOpção: ");
-                try {
-                    opcao = Integer.parseInt(console.nextLine());
-                } catch (NumberFormatException e) {
-                    opcao = -1;
+
+                entrada = console.nextLine().trim().toUpperCase();
+
+                if (entrada.equals("A")) {
+                    inserir();
+                } else if (entrada.equals("B")) {
+                    buscarPorCodigo();
+                } else if (entrada.equals("C")) {
+                    buscarPorNome();
+                } else if (entrada.matches("\\d+")) {
+                    abrirCursoPorNumero(Integer.parseInt(entrada));
+                } else if (!entrada.equals("R")) {
+                    System.out.println("Opção inválida!");
                 }
 
-                switch (opcao) {
-                    case 1:
-                        inserir();
-                        break;
-                    case 2:
-                        buscarPorCodigo();
-                        break;
-                    case 3:
-                        buscarPorNome();
-                        break;
-                    case 4:
-                        listarMeusCursos();
-                        break;
-                    case 5:
-                        alterar();
-                        break;
-                    case 6:
-                        excluir();
-                        break;
-                    case 7:
-                        listagemPaginada();
-                        break;
-                    case 0: break;
-                    default:
-                        System.out.println("Opção inválida");
-                }
-            } while (opcao != 0);
+            } while (!entrada.equals("R"));
 
             arqCurso.close();
             arqUsuario.close();
+            arqCursoUsuario.close();
 
-        } catch(Exception e) {
+        } catch (Exception e) {
             System.err.println("Erro no menu de cursos!");
             e.printStackTrace();
         }
     }
 
-    private void inserir() throws Exception {
-        System.out.println("\n=== INCLUSÃO DE CURSO ===");
-
-        // Verifica se há usuário ativo
+    private void listarMeusCursosResumo() throws Exception {
         if (usuarioAtivo == null) {
-            System.out.println("⚠️  Nenhum usuário ativo! Você precisa vincular um curso a um usuário.");
-            System.out.print("Email do usuário proprietário: ");
-            String email = console.nextLine();
-            if (email.isEmpty()) return;
+            System.out.println("Nenhum usuário ativo.");
+            return;
+        }
 
-            usuarioAtivo = arqUsuario.readEmail(email);
-            if (usuarioAtivo == null) {
-                System.out.println("Usuário não encontrado!");
-                return;
+        Curso[] cursos = arqCurso.readPorUsuario(usuarioAtivo.getID());
+        if (cursos.length == 0) {
+            System.out.println("CURSOS");
+            System.out.println("(nenhum curso cadastrado)");
+            return;
+        }
+
+        System.out.println("CURSOS");
+        for (int i = 0; i < cursos.length; i++) {
+            System.out.println("(" + (i + 1) + ") " + cursos[i].getNome() + " - " +
+                    cursos[i].getDataInicio().format(FORMATO_DATA));
+        }
+    }
+
+    private void abrirCursoPorNumero(int numero) throws Exception {
+        if (usuarioAtivo == null) {
+            System.out.println("Nenhum usuário ativo.");
+            return;
+        }
+
+        Curso[] cursos = arqCurso.readPorUsuario(usuarioAtivo.getID());
+        if (numero < 1 || numero > cursos.length) {
+            System.out.println("Curso inválido!");
+            return;
+        }
+
+        Curso curso = cursos[numero - 1];
+        String entrada;
+
+        do {
+            System.out.println("\n\nEntrePares 1.0");
+            System.out.println("--------------");
+            System.out.println("> Início > Meus cursos > " + curso.getNome() + "\n");
+
+            mostraCursoDetalhado(curso);
+
+            System.out.println("\n(A) Gerenciar inscritos no curso");
+            System.out.println("(B) Corrigir dados do curso");
+            System.out.println("(C) Encerrar inscrições");
+            System.out.println("(D) Concluir curso");
+            System.out.println("(E) Cancelar curso");
+            System.out.println("(X) Excluir curso");
+            System.out.println("(R) Retornar");
+            System.out.print("\nOpção: ");
+
+            entrada = console.nextLine().trim().toUpperCase();
+
+            switch (entrada) {
+                case "A":
+                    gerenciarInscritos(curso);
+                    break;
+                case "B":
+                    alterar(curso);
+                    curso = arqCurso.read(curso.getID());
+                    break;
+                case "C":
+                    curso.setEstado(Curso.ATIVO_SEM_INSCRICOES);
+                    arqCurso.update(curso);
+                    curso = arqCurso.read(curso.getID());
+                    System.out.println("Inscrições encerradas.");
+                    break;
+                case "D":
+                    curso.setEstado(Curso.CONCLUIDO);
+                    arqCurso.update(curso);
+                    curso = arqCurso.read(curso.getID());
+                    System.out.println("Curso concluído.");
+                    break;
+                case "E":
+                    curso.setEstado(Curso.CANCELADO);
+                    arqCurso.update(curso);
+                    curso = arqCurso.read(curso.getID());
+                    System.out.println("Curso cancelado.");
+                    break;
+                case "X":
+                    excluir(curso);
+                    entrada = "R";
+                    break;
+                case "R":
+                    break;
+                default:
+                    System.out.println("Opção inválida!");
             }
-            System.out.println("Usuário ativo definido: " + usuarioAtivo.getNome());
+        } while (!entrada.equals("R"));
+    }
+
+    private void gerenciarInscritos(Curso curso) throws Exception {
+        String entrada;
+
+        do {
+            System.out.println("\n\nEntrePares 1.0");
+            System.out.println("--------------");
+            System.out.println("> Início > Meus cursos > " + curso.getNome() + " > Inscrições\n");
+
+            CursoUsuario[] inscricoes = arqCursoUsuario.readPorCurso(curso.getID());
+            Arrays.sort(inscricoes, Comparator.comparing(i -> i.getDataInscricao()));
+
+            for (int i = 0; i < inscricoes.length; i++) {
+                Usuario usuario = arqUsuario.read(inscricoes[i].getIdUsuario());
+                String nome = usuario == null ? "Usuário não encontrado" : usuario.getNome();
+                System.out.println("(" + (i + 1) + ") " + nome + " (" +
+                        inscricoes[i].getDataInscricao().format(FORMATO_DATA) + ")");
+            }
+
+            if (inscricoes.length == 0) {
+                System.out.println("(nenhum inscrito)");
+            }
+
+            System.out.println("\n(A) Exportar lista");
+            System.out.println("(R) Retornar ao menu anterior");
+            System.out.print("\nOpção: ");
+
+            entrada = console.nextLine().trim().toUpperCase();
+
+            if (entrada.equals("A")) {
+                exportarLista(curso, inscricoes);
+            } else if (entrada.matches("\\d+")) {
+                int numero = Integer.parseInt(entrada);
+                if (numero >= 1 && numero <= inscricoes.length) {
+                    abrirInscrito(curso, inscricoes[numero - 1]);
+                } else {
+                    System.out.println("Inscrito inválido!");
+                }
+            } else if (!entrada.equals("R")) {
+                System.out.println("Opção inválida!");
+            }
+
+        } while (!entrada.equals("R"));
+    }
+
+    private void abrirInscrito(Curso curso, CursoUsuario inscricao) throws Exception {
+        Usuario usuario = arqUsuario.read(inscricao.getIdUsuario());
+        String entrada;
+
+        do {
+            System.out.println("\n\nEntrePares 1.0");
+            System.out.println("--------------");
+            System.out.println("> Início > Meus cursos > " + curso.getNome() + " > Inscrições\n");
+
+            if (usuario == null) {
+                System.out.println("Usuário não encontrado.");
+            } else {
+                System.out.println("Nome...............: " + usuario.getNome());
+                System.out.println("Email..............: " + usuario.getEmail());
+                System.out.println("Data da inscrição..: " + inscricao.getDataInscricao().format(FORMATO_DATA));
+            }
+
+            System.out.println("\n(A) Cancelar inscrição deste usuário");
+            System.out.println("(R) Retornar ao menu anterior");
+            System.out.print("\nOpção: ");
+
+            entrada = console.nextLine().trim().toUpperCase();
+
+            if (entrada.equals("A")) {
+                if (arqCursoUsuario.delete(inscricao.getID())) {
+                    System.out.println("Inscrição cancelada.");
+                    entrada = "R";
+                } else {
+                    System.out.println("Erro ao cancelar inscrição.");
+                }
+            } else if (!entrada.equals("R")) {
+                System.out.println("Opção inválida!");
+            }
+
+        } while (!entrada.equals("R"));
+    }
+
+    private void exportarLista(Curso curso, CursoUsuario[] inscricoes) throws Exception {
+        String nomeArquivo = "inscritos_curso_" + curso.getID() + ".csv";
+
+        FileWriter fw = new FileWriter(nomeArquivo);
+        fw.write("nome,email,data_inscricao\n");
+
+        for (CursoUsuario inscricao : inscricoes) {
+            Usuario usuario = arqUsuario.read(inscricao.getIdUsuario());
+            if (usuario != null) {
+                fw.write(csv(usuario.getNome()) + "," + csv(usuario.getEmail()) + "," +
+                        inscricao.getDataInscricao().format(FORMATO_DATA) + "\n");
+            }
+        }
+
+        fw.close();
+        System.out.println("Lista exportada para " + nomeArquivo);
+    }
+
+    private String csv(String valor) {
+        String texto = valor == null ? "" : valor.replace("\"", "\"\"");
+        return "\"" + texto + "\"";
+    }
+
+    private void inserir() throws Exception {
+        System.out.println("\n=== NOVO CURSO ===");
+
+        if (usuarioAtivo == null) {
+            System.out.println("Nenhum usuário ativo. Faça login primeiro.");
+            return;
         }
 
         System.out.print("Nome do curso: ");
         String nome = console.nextLine();
         if (nome.isEmpty()) return;
 
-        System.out.print("Descrição: ");
+        System.out.print("Descrição detalhada: ");
         String descricao = console.nextLine();
         if (descricao.isEmpty()) return;
 
-        // Data de início
-        LocalDate dataInicio = LocalDate.now();
-        boolean dadosValidos = false;
-        do {
-            System.out.print("Data de início (dd/mm/aaaa) [Enter para hoje]: ");
+        LocalDate dataInicio = null;
+        while (dataInicio == null) {
+            System.out.print("Data de início (dd/mm/aaaa): ");
             String data = console.nextLine();
-            if (data.isEmpty()) {
-                dadosValidos = true;
-            } else {
-                try {
-                    String[] dadosData = data.split("/");
-                    dataInicio = LocalDate.of(
-                            Integer.parseInt(dadosData[2]),
-                            Integer.parseInt(dadosData[1]),
-                            Integer.parseInt(dadosData[0]));
-                    dadosValidos = true;
-                } catch (Exception e) {
-                    System.out.println("Data inválida!");
-                }
+            if (data.isEmpty()) return;
+
+            try {
+                String[] dadosData = data.split("/");
+                dataInicio = LocalDate.of(
+                    Integer.parseInt(dadosData[2]),
+                    Integer.parseInt(dadosData[1]),
+                    Integer.parseInt(dadosData[0])
+                );
+            } catch (Exception e) {
+                System.out.println("Data inválida!");
             }
-        } while (!dadosValidos);
+        }
 
-        // Estado do curso
-        System.out.println("\nEstado do curso:");
-        System.out.println("0 - Ativo e recebendo inscrições");
-        System.out.println("1 - Ativo, mas sem novas inscrições");
-        System.out.println("2 - Curso concluído");
-        System.out.println("3 - Curso cancelado");
-        short estado = Curso.ATIVO_INSCRICOES;
-        dadosValidos = false;
-        do {
-            System.out.print("Estado (0-3) [Enter para 0]: ");
-            String estadoStr = console.nextLine();
-            if (estadoStr.isEmpty()) {
-                dadosValidos = true;
-            } else {
-                try {
-                    estado = Short.parseShort(estadoStr);
-                    if (estado >= 0 && estado <= 3) {
-                        dadosValidos = true;
-                    } else {
-                        System.out.println("Estado deve ser entre 0 e 3!");
-                    }
-                } catch (Exception e) {
-                    System.out.println("Estado inválido!");
-                }
-            }
-        } while (!dadosValidos);
+        String codigoCompartilhavel = gerarCodigoCompartilhavelUnico();
+        Curso curso = new Curso(usuarioAtivo.getID(), nome, dataInicio, descricao, codigoCompartilhavel, Curso.ATIVO_INSCRICOES);
 
-        // Gera código compartilhável único usando NanoID
-        String codigoCompartilhavel = NanoIdUtil.generate();
-
-        Curso curso = new Curso(nome, dataInicio, descricao, codigoCompartilhavel, estado);
-
-        int id = arqCurso.create(curso);
-
-        // Associa o usuário criador como instrutor do curso
-        arqCurso.associarUsuario(usuarioAtivo.getID(), id, CursoUsuario.INSTRUTOR);
-
-        System.out.println("Curso incluído com ID: " + id);
+        arqCurso.create(curso);
+        System.out.println("Curso incluído com sucesso!");
         System.out.println("Código compartilhável: " + codigoCompartilhavel);
     }
 
     private void buscarPorCodigo() throws Exception {
-        System.out.println("\n=== BUSCA POR CÓDIGO ===");
         System.out.print("Código: ");
         String codigo = console.nextLine();
         if (codigo.isEmpty()) return;
 
         Curso curso = arqCurso.readCodigo(codigo);
         if (curso != null) {
-            mostraCurso(curso);
+            mostraCursoDetalhado(curso);
         } else {
             System.out.println("Curso não encontrado!");
         }
     }
 
     private void buscarPorNome() throws Exception {
-        System.out.println("\n=== BUSCA POR PALAVRAS-CHAVE ===");
-        System.out.print("Palavras-chave (separadas por espaço): ");
-        String consulta = console.nextLine();
-        if (consulta.isEmpty()) return;
+        System.out.print("Nome: ");
+        String nome = console.nextLine();
+        if (nome.isEmpty()) return;
 
-        Curso[] cursos = arqCurso.buscarPorPalavrasChave(consulta);
-        if (cursos.length > 0) {
-            System.out.println("\n=== CURSOS ENCONTRADOS (ordenados por relevância TFxIDF) ===");
-            for (Curso c : cursos) {
-                mostraCurso(c);
-                System.out.println();
-            }
-        } else {
+        Curso[] cursos = arqCurso.readNome(nome);
+        if (cursos.length == 0) {
             System.out.println("Nenhum curso encontrado!");
+            return;
+        }
+
+        for (Curso curso : cursos) {
+            mostraCursoDetalhado(curso);
+            System.out.println();
         }
     }
 
-    private void listarMeusCursos() throws Exception {
-        System.out.println("\n=== MEUS CURSOS ===");
+    private void alterar(Curso curso) throws Exception {
+        System.out.println("\n=== CORRIGIR DADOS DO CURSO ===");
 
-        if (usuarioAtivo == null) {
-            System.out.println("Nenhum usuário ativo! Faça login primeiro.");
-            return;
-        }
-
-        // Busca cursos onde o usuário é instrutor
-        CursoUsuario[] assocs = arqCurso.getCursosDoUsuario(usuarioAtivo.getID());
-        if (assocs.length > 0) {
-            System.out.println("Cursos onde você é instrutor:");
-            for (CursoUsuario assoc : assocs) {
-                if (assoc.getPapel().equals(CursoUsuario.INSTRUTOR)) {
-                    Curso curso = arqCurso.read(assoc.getIdCurso());
-                    if (curso != null) {
-                        mostraCurso(curso);
-                        System.out.println();
-                    }
-                }
-            }
-        } else {
-            System.out.println("Você não possui cursos cadastrados como instrutor!");
-        }
-    }
-
-    private void alterar() throws Exception {
-        System.out.println("\n=== ALTERAÇÃO DE CURSO ===");
-        System.out.print("Código do curso: ");
-        String codigo = console.nextLine();
-        if (codigo.isEmpty()) return;
-
-        Curso curso = arqCurso.readCodigo(codigo);
-        if (curso == null) {
-            System.out.println("Curso não encontrado!");
-            return;
-        }
-
-        // Verifica se o usuário pode alterar este curso (deve ser instrutor)
-        if (!arqCurso.usuarioTemPapel(usuarioAtivo.getID(), curso.getID(), CursoUsuario.INSTRUTOR)) {
-            System.out.println("Você só pode alterar cursos onde é instrutor!");
-            return;
-        }
-
-        mostraCurso(curso);
-        System.out.println("\nDeixe em branco para manter o valor atual.\n");
-
-        // Nome
         System.out.print("Nome (" + curso.getNome() + "): ");
         String nome = console.nextLine();
-        if (!nome.isEmpty()) curso.setNome(nome);
+        if (!nome.isEmpty()) {
+            curso.setNome(nome);
+        }
 
-        // Descrição
         System.out.print("Descrição (" + curso.getDescricao() + "): ");
         String descricao = console.nextLine();
-        if (!descricao.isEmpty()) curso.setDescricao(descricao);
+        if (!descricao.isEmpty()) {
+            curso.setDescricao(descricao);
+        }
 
-        // Data de início
-        System.out.print("Data de início (dd/mm/aaaa) [" + curso.getDataInicio().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + "]: ");
+        System.out.print("Data de início (dd/mm/aaaa) [" +
+                curso.getDataInicio().format(FORMATO_DATA) + "]: ");
         String data = console.nextLine();
         if (!data.isEmpty()) {
             try {
                 String[] dadosData = data.split("/");
                 curso.setDataInicio(LocalDate.of(
-                        Integer.parseInt(dadosData[2]),
-                        Integer.parseInt(dadosData[1]),
-                        Integer.parseInt(dadosData[0])));
+                    Integer.parseInt(dadosData[2]),
+                    Integer.parseInt(dadosData[1]),
+                    Integer.parseInt(dadosData[0])
+                ));
             } catch (Exception e) {
-                System.out.println("Data inválida, mantendo anterior.");
-            }
-        }
-
-        // Estado
-        System.out.println("Estado atual: " + curso.getEstadoDescricao());
-        System.out.println("Novo estado (0-3) [Enter para manter]:");
-        System.out.println("0 - Ativo e recebendo inscrições");
-        System.out.println("1 - Ativo, mas sem novas inscrições");
-        System.out.println("2 - Curso concluído");
-        System.out.println("3 - Curso cancelado");
-        String estadoStr = console.nextLine();
-        if (!estadoStr.isEmpty()) {
-            try {
-                short novoEstado = Short.parseShort(estadoStr);
-                if (novoEstado >= 0 && novoEstado <= 3) {
-                    curso.setEstado(novoEstado);
-                } else {
-                    System.out.println("Estado inválido, mantendo anterior.");
-                }
-            } catch (Exception e) {
-                System.out.println("Estado inválido, mantendo anterior.");
+                System.out.println("Data inválida, mantendo a anterior.");
             }
         }
 
@@ -325,25 +385,16 @@ public class MenuCursos {
         }
     }
 
-    private void excluir() throws Exception {
-        System.out.println("\n=== EXCLUSÃO DE CURSO ===");
-        System.out.print("Código do curso: ");
-        String codigo = console.nextLine();
-        if (codigo.isEmpty()) return;
+    private void excluir(Curso curso) throws Exception {
+        System.out.print("Confirma exclusão (S/N)? ");
+        String confirma = console.nextLine();
 
-        Curso curso = arqCurso.readCodigo(codigo);
-        if (curso == null) {
-            System.out.println("Curso não encontrado!");
+        if (confirma.isEmpty() || (confirma.charAt(0) != 'S' && confirma.charAt(0) != 's')) {
+            System.out.println("Exclusão cancelada.");
             return;
         }
 
-        // Verifica se o usuário pode excluir este curso (deve ser instrutor)
-        if (!arqCurso.usuarioTemPapel(usuarioAtivo.getID(), curso.getID(), CursoUsuario.INSTRUTOR)) {
-            System.out.println("Você só pode excluir cursos onde é instrutor!");
-            return;
-        }
-
-        mostraCurso(curso);
+        arqCursoUsuario.deletePorCurso(curso.getID());
 
         if (arqCurso.delete(curso.getID())) {
             System.out.println("Curso excluído!");
@@ -352,71 +403,20 @@ public class MenuCursos {
         }
     }
 
-    private void listagemPaginada() throws Exception {
-        System.out.println("\n=== LISTAGEM PAGINADA DE TODOS OS CURSOS ===");
-
-        Curso[] todosCursos = arqCurso.readAll();
-        if (todosCursos.length == 0) {
-            System.out.println("Nenhum curso cadastrado!");
-            return;
-        }
-
-        int itensPorPagina = 10;
-        int totalPaginas = (int) Math.ceil((double) todosCursos.length / itensPorPagina);
-        int paginaAtual = 0;
-
-        boolean continuar = true;
-        while (continuar) {
-            int inicio = paginaAtual * itensPorPagina;
-            int fim = Math.min(inicio + itensPorPagina, todosCursos.length);
-
-            System.out.println("\n--- Página " + (paginaAtual + 1) + " de " + totalPaginas + " ---");
-            for (int i = inicio; i < fim; i++) {
-                mostraCurso(todosCursos[i]);
-                System.out.println();
-            }
-
-            System.out.print("\n[N] Próxima página | [P] Página anterior | [S] Sair: ");
-            String opcao = console.nextLine().toUpperCase();
-
-            switch (opcao) {
-                case "N":
-                    if (paginaAtual < totalPaginas - 1) {
-                        paginaAtual++;
-                    } else {
-                        System.out.println("Você já está na última página!");
-                    }
-                    break;
-                case "P":
-                    if (paginaAtual > 0) {
-                        paginaAtual--;
-                    } else {
-                        System.out.println("Você já está na primeira página!");
-                    }
-                    break;
-                case "S":
-                    continuar = false;
-                    break;
-                default:
-                    System.out.println("Opção inválida!");
-            }
-        }
+    private void mostraCursoDetalhado(Curso curso) throws Exception {
+        System.out.println("CÓDIGO........: " + curso.getCodigoCompartilhavel());
+        System.out.println("NOME..........: " + curso.getNome());
+        System.out.println("DESCRIÇÃO.....: " + curso.getDescricao());
+        System.out.println("DATA DE INÍCIO: " + curso.getDataInicio().format(FORMATO_DATA));
+        System.out.println();
+        System.out.println(curso.getEstadoDescricao());
     }
 
-    private void mostraCurso(Curso curso) throws Exception {
-        // Busca o instrutor do curso
-        Integer idInstrutor = arqCurso.getInstrutorDoCurso(curso.getID());
-        Usuario instrutor = idInstrutor != null ? arqUsuario.read(idInstrutor) : null;
-        String nomeInstrutor = instrutor != null ? instrutor.getNome() : "Instrutor não encontrado";
-
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        System.out.println("\n=== CURSO ===");
-        System.out.println("ID............: " + curso.getID());
-        System.out.println("Código........: " + curso.getCodigoCompartilhavel());
-        System.out.println("Nome..........: " + curso.getNome());
-        System.out.println("Descrição.....: " + curso.getDescricao());
-        System.out.println("Data de Início: " + curso.getDataInicio().format(formatter));
-        System.out.println("Estado........: " + curso.getEstadoDescricao());
-        System.out.println("Instrutor.....: " + nomeInstrutor + " (ID: " + curso.getID() + ")");
+    private String gerarCodigoCompartilhavelUnico() throws Exception {
+        String codigo;
+        do {
+            codigo = NanoIdUtil.generate();
+        } while (arqCurso.readCodigo(codigo) != null);
+        return codigo;
     }
 }
