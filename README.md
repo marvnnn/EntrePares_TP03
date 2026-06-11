@@ -1,46 +1,59 @@
-# 📚 Trabalho Prático – AEDs III (TP2)
+# 📚 Trabalho Prático – AEDs III (TP3)
 
 ## 👥 Participantes
-- Arthur Campos Pereira
-- Felipe Barros Silva
-- Mateus Martins Parreiras
+
+* Arthur Campos Pereira
+* Felipe Barros Silva
+* Mateus Martins Parreiras
 
 ---
 
 # 🧾 Descrição do Sistema
 
-O sistema realiza o gerenciamento de usuários, cursos e inscrições.
+O sistema permite o gerenciamento de usuários, cursos e inscrições.
 
-Os usuários podem:
-- realizar cadastro e login;
-- criar cursos;
-- buscar cursos utilizando código NanoID;
-- realizar inscrições em cursos;
-- cancelar inscrições;
-- visualizar os inscritos em seus cursos.
+As principais funcionalidades são:
 
-O projeto utiliza Tabelas Hash Extensíveis e Árvores B+ para armazenamento e indexação dos dados.
+* cadastro e autenticação de usuários;
+* cadastro e gerenciamento de cursos;
+* inscrição e cancelamento de inscrições;
+* busca de cursos por código compartilhável (NanoID);
+* busca de cursos por palavras-chave utilizando índice invertido;
+* gerenciamento de inscritos nos cursos;
+* exportação da lista de inscritos em CSV.
+
+A busca por palavras utiliza índice invertido com cálculo TFxIDF para ordenar os resultados por relevância.
 
 ---
 
-# 🖥️ Telas do Sistema
+# 🖥️ Capturas de Tela
 
 ## Tela Inicial
+
 ![Tela Inicial](imagens/tela-inicial.jpg)
 
 ## Cadastro de Usuário
+
 ![Cadastro de Usuário](imagens/cadastro-usuario.jpg)
 
 ## Menu Meus Cursos
+
 ![Menu Meus Cursos](imagens/menu-cursos.jpg)
 
-## Busca de Cursos por NanoID
+## Busca por Código NanoID
+
 ![Busca NanoID](imagens/busca-nanoid.jpg)
 
-## Menu Minhas Inscrições
-![Menu Minhas Inscrições](imagens/minhas-inscricoes.jpg)
+## Busca por Palavras-Chave
 
-## Lista de Inscritos no Curso
+![Busca Palavras](imagens/busca-palavras.jpg)
+
+## Menu Minhas Inscrições
+
+![Minhas Inscrições](imagens/minhas-inscricoes.jpg)
+
+## Lista de Inscritos
+
 ![Lista de Inscritos](imagens/lista-inscritos.jpg)
 
 ---
@@ -48,63 +61,67 @@ O projeto utiliza Tabelas Hash Extensíveis e Árvores B+ para armazenamento e i
 # 🧱 Classes Criadas
 
 ## Entidades
-- `Usuario`
-- `Curso`
-- `CursoUsuario`
+
+* Usuario
+* Curso
+* CursoUsuario
 
 ## Arquivos
-- `ArquivoUsuario`
-- `ArquivoCurso`
-- `ArquivoCursoUsuario`
+
+* ArquivoUsuario
+* ArquivoCurso
+* ArquivoCursoUsuario
 
 ## Menus
-- `MenuUsuario`
-- `MenuCursos`
-- `MenuInscricoes`
 
-## Utilidades
-- `NanoIdUtil`
+* MenuUsuario
+* MenuCursos
+* MenuInscricoes
+
+## Estruturas Utilizadas
+
+* ListaInvertida
+* HashExtensivel
+* ArvoreBMais
 
 ---
 
-# 🔗 Relacionamento N:N
+# ⚙️ Operações Especiais Implementadas
 
-O relacionamento entre usuários e cursos foi implementado utilizando a entidade `CursoUsuario`.
-
-Foram utilizadas duas Árvores B+:
-- `(idCurso, idCursoUsuario)`
-- `(idUsuario, idCursoUsuario)`
+* Relacionamento N:N entre usuários e cursos.
+* Busca por código NanoID.
+* Busca por palavras-chave usando índice invertido.
+* Ordenação dos resultados por TFxIDF.
+* Atualização automática do índice invertido em inclusões, alterações e exclusões de cursos.
+* Exportação da lista de inscritos em formato CSV.
+* Bloqueio de inscrições duplicadas.
 
 ---
 
 # ✅ Checklist
 
-## Há um CRUD da entidade de associação CursoUsuario (que estende a classe ArquivoIndexado, acrescentando Tabelas Hash Extensíveis e Árvores B+ como índices diretos e indiretos conforme necessidade) que funciona corretamente?
+## O índice invertido com os termos dos nomes dos cursos foi criado usando a classe ListaInvertida?
+
 Sim.
 
-## A visão de inscrições está corretamente implementada e permite consultas aos cursos em que um usuário está inscrito?
-Sim.
+## É possível buscar cursos por palavras no menu de inscrição?
 
-## A visão de cursos funciona corretamente e permite a gestão dos usuários inscritos em um curso?
-Sim.
-
-## Há uma visualização dos cursos de outras pessoas por meio de um código NanoID?
-Sim.
-
-## A integridade do relacionamento entre cursos e usuários está mantida em todas as operações?
 Sim.
 
 ## O trabalho compila corretamente?
+
 Sim.
 
 ## O trabalho está completo e funcionando sem erros de execução?
+
 Sim.
 
 ## O trabalho é original e não a cópia de um trabalho de outro grupo?
+
 Sim.
 
 ---
 
 # 🎥 Vídeo de Demonstração
 
-https://youtu.be/WSPK65PM4zk
+https://youtu.be/SEU_LINK_AQUI
