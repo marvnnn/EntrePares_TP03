@@ -46,7 +46,7 @@ A busca por palavras utiliza índice invertido com cálculo TFxIDF para ordenar 
 
 ## Busca por Palavras-Chave
 
-![Busca Palavras](imagens/busca-palavras.png)
+![Busca Palavras](imagens/busca-palavra.png)
 
 ## Menu Minhas Inscrições
 
